@@ -1,13 +1,14 @@
-/* Portfolio viewer: opens from the Contact page's portfolio button.
+/* PDF viewer: opens from the Contact page's resume and portfolio buttons (any button with data-pdf-open).
+   Each button carries its document: data-title, data-sub, data-pages, data-src, data-pdf, data-w, data-h, data-label.
    Pages scroll vertically; the arrows and page box jump between pages; zoom scales the pages; the footer button downloads the PDF. */
 (function () {
   var dlg = document.getElementById("pdf-dialog");
-  var btn = document.getElementById("portfolio-btn");
-  if (!dlg || !btn) return;
+  var openers = document.querySelectorAll("[data-pdf-open]");
+  if (!dlg || !openers.length) return;
 
-  var total = parseInt(dlg.getAttribute("data-pages"), 10);
-  var src = dlg.getAttribute("data-src");
+  var total = 0, src = "", pw = 1100, ph = 1424, label = "Page", doc = null;
   var scroller = document.getElementById("pdf-scroll");
+  var dl = document.getElementById("pdf-download");
   var holder = document.getElementById("pdf-pages");
   var pageBox = document.getElementById("pdf-page");
   var zoomLabel = document.getElementById("pdf-zoom-reset");
@@ -19,10 +20,11 @@
       var fig = document.createElement("div");
       fig.className = "pdf-page";
       fig.setAttribute("data-page", i);
+      fig.style.aspectRatio = pw + " / " + ph;
       var img = document.createElement("img");
       img.src = src.replace("{n}", (i < 10 ? "0" : "") + i);
-      img.alt = "Portfolio page " + i + " of " + total;
-      img.width = 1100; img.height = 1424;
+      img.alt = label + " page " + i + " of " + total;
+      img.width = pw; img.height = ph;
       img.loading = i <= 2 ? "eager" : "lazy";
       img.decoding = "async";
       img.draggable = false;
@@ -71,7 +73,29 @@
     scroller.scrollLeft = midX * scroller.scrollWidth - scroller.clientWidth / 2;
   }
 
+  // Load the chosen document into the viewer; reopening the same one keeps its page and zoom
+  function load(b) {
+    if (doc === b) return;
+    doc = b;
+    total = parseInt(b.getAttribute("data-pages"), 10);
+    src = b.getAttribute("data-src");
+    pw = parseInt(b.getAttribute("data-w"), 10) || 1100;
+    ph = parseInt(b.getAttribute("data-h"), 10) || 1424;
+    label = b.getAttribute("data-label") || "Document";
+    var title = document.getElementById("pdf-title"), sub = b.getAttribute("data-sub");
+    title.textContent = b.getAttribute("data-title");
+    if (sub) { var sp = document.createElement("span"); sp.textContent = sub; title.appendChild(document.createTextNode(" ")); title.appendChild(sp); }
+    document.getElementById("pdf-total").textContent = total;
+    scroller.setAttribute("aria-label", label + " pages");
+    dl.setAttribute("href", b.getAttribute("data-pdf"));
+    dl.setAttribute("download", b.getAttribute("data-pdf").split("/").pop());
+    holder.textContent = "";
+    built = false; current = 1; zi = 2;
+    scroller.scrollTop = 0;
+  }
+
   function open() {
+    load(this);
     if (!built) build();
     if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
     document.documentElement.classList.add("pdf-open");
@@ -82,7 +106,7 @@
 
   function close() { dlg.close ? dlg.close() : dlg.removeAttribute("open"); }
 
-  btn.addEventListener("click", open);
+  openers.forEach(function (b) { b.addEventListener("click", open); });
   document.getElementById("pdf-close").addEventListener("click", close);
   dlg.addEventListener("close", function () { document.documentElement.classList.remove("pdf-open"); });
   dlg.addEventListener("click", function (e) { if (e.target === dlg) close(); });
@@ -115,7 +139,7 @@
 
   // Inside the claude.ai preview, plain download links are blocked, so the save goes through the viewer's downloads prompt.
   // On the real site this is skipped and the link downloads the PDF as usual.
-  var saver = null, dl = document.getElementById("pdf-download");
+  var saver = null;
   if (window.claude && typeof window.claude.use === "function") {
     window.claude.use("downloads").then(function (d) { saver = d; }, function () {});
   }
